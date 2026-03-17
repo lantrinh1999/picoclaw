@@ -469,6 +469,33 @@ func (c *TelegramChannel) handleMessage(ctx context.Context, message *telego.Mes
 		content += message.Caption
 	}
 
+	// Include replied-to message content so the agent has full context.
+	if reply := message.ReplyToMessage; reply != nil {
+		var replyContent string
+		if reply.Text != "" {
+			replyContent = reply.Text
+		} else if reply.Caption != "" {
+			replyContent = reply.Caption
+		}
+		if len(reply.Photo) > 0 {
+			replyContent += " [image]"
+		}
+		if reply.Document != nil {
+			replyContent += " [file]"
+		}
+		if reply.Voice != nil {
+			replyContent += " [voice]"
+		}
+		replyContent = strings.TrimSpace(replyContent)
+		if replyContent != "" {
+			// Truncate long replies to avoid flooding agent context.
+			if len([]rune(replyContent)) > 500 {
+				replyContent = string([]rune(replyContent)[:500]) + "..."
+			}
+			content = fmt.Sprintf("[Replying to: %s]\n%s", replyContent, content)
+		}
+	}
+
 	if len(message.Photo) > 0 {
 		photo := message.Photo[len(message.Photo)-1]
 		photoPath := c.downloadPhoto(ctx, photo.FileID)
