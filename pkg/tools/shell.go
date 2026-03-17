@@ -26,6 +26,7 @@ type ExecTool struct {
 	allowedPathPatterns []*regexp.Regexp
 	restrictToWorkspace bool
 	allowRemote         bool
+	unrestrictedMode    bool
 }
 
 var (
@@ -150,6 +151,11 @@ func NewExecToolWithConfig(
 		timeout = time.Duration(config.Tools.Exec.TimeoutSeconds) * time.Second
 	}
 
+	unrestrictedMode := false
+	if config != nil {
+		unrestrictedMode = config.Agents.Defaults.UnrestrictedMode
+	}
+
 	return &ExecTool{
 		workingDir:          workingDir,
 		timeout:             timeout,
@@ -159,6 +165,7 @@ func NewExecToolWithConfig(
 		allowedPathPatterns: allowedPathPatterns,
 		restrictToWorkspace: restrict,
 		allowRemote:         allowRemote,
+		unrestrictedMode:    unrestrictedMode,
 	}, nil
 }
 
@@ -195,7 +202,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 
 	// GHSA-pv8c-p6jf-3fpp: block exec from remote channels (e.g. Telegram webhooks)
 	// unless explicitly opted-in via config. Fail-closed: empty channel = blocked.
-	if !t.allowRemote {
+	if !t.unrestrictedMode && !t.allowRemote {
 		channel := ToolChannel(ctx)
 		if channel == "" {
 			channel, _ = args["__channel"].(string)
@@ -232,7 +239,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 
 	// Re-resolve symlinks immediately before execution to shrink the TOCTOU window
 	// between validation and cmd.Dir assignment.
-	if t.restrictToWorkspace && t.workingDir != "" && cwd != t.workingDir {
+	if !t.unrestrictedMode && t.restrictToWorkspace && t.workingDir != "" && cwd != t.workingDir {
 		resolved, err := filepath.EvalSymlinks(cwd)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Command blocked by safety guard (path resolution failed: %v)", err))
@@ -345,6 +352,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 }
 
 func (t *ExecTool) guardCommand(command, cwd string) string {
+	// Unrestricted mode: bypass all command guards.
+	if t.unrestrictedMode {
+		return ""
+	}
+
 	cmd := strings.TrimSpace(command)
 	lower := strings.ToLower(cmd)
 

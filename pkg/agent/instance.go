@@ -66,6 +66,12 @@ func NewAgentInstance(
 	restrict := defaults.RestrictToWorkspace
 	readRestrict := restrict && !defaults.AllowReadOutsideWorkspace
 
+	// Unrestricted mode: disable all filesystem sandboxing.
+	if defaults.UnrestrictedMode {
+		restrict = false
+		readRestrict = false
+	}
+
 	// Compile path whitelist patterns from config.
 	allowReadPaths := buildAllowReadPatterns(cfg)
 	allowWritePaths := compilePatterns(cfg.Tools.AllowWritePaths)

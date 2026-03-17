@@ -121,6 +121,10 @@ func registerSharedTools(
 ) {
 	allowReadPaths := buildAllowReadPatterns(cfg)
 
+	// Unrestricted mode: allow web_fetch to reach private/loopback hosts.
+	if cfg.Agents.Defaults.UnrestrictedMode {
+		tools.SetAllowPrivateWebFetchHosts(true)
+	}
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
 		if !ok {
@@ -206,6 +210,9 @@ func registerSharedTools(
 				nil,
 				allowReadPaths,
 			)
+			if cfg.Agents.Defaults.UnrestrictedMode {
+				sendFileTool.SetUnrestrictedMode(true)
+			}
 			agent.Tools.Register(sendFileTool)
 		}
 
@@ -241,6 +248,9 @@ func registerSharedTools(
 			subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 			if spawnEnabled {
 				spawnTool := tools.NewSpawnTool(subagentManager)
+				if cfg.Agents.Defaults.UnrestrictedMode {
+					spawnTool.SetUnrestrictedMode(true)
+				}
 				currentAgentID := agentID
 				spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
 					return registry.CanSpawnSubagent(currentAgentID, targetAgentID)

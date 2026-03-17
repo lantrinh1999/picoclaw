@@ -20,12 +20,13 @@ type JobExecutor interface {
 
 // CronTool provides scheduling capabilities for the agent
 type CronTool struct {
-	cronService  *cron.CronService
-	executor     JobExecutor
-	msgBus       *bus.MessageBus
-	execTool     *ExecTool
-	allowCommand bool
-	execEnabled  bool
+	cronService     *cron.CronService
+	executor        JobExecutor
+	msgBus          *bus.MessageBus
+	execTool        *ExecTool
+	allowCommand    bool
+	execEnabled     bool
+	unrestrictedMode bool
 }
 
 // NewCronTool creates a new CronTool
@@ -54,12 +55,13 @@ func NewCronTool(
 		execTool.SetTimeout(execTimeout)
 	}
 	return &CronTool{
-		cronService:  cronService,
-		executor:     executor,
-		msgBus:       msgBus,
-		execTool:     execTool,
-		allowCommand: allowCommand,
-		execEnabled:  execEnabled,
+		cronService:     cronService,
+		executor:        executor,
+		msgBus:          msgBus,
+		execTool:        execTool,
+		allowCommand:    allowCommand,
+		execEnabled:     execEnabled,
+		unrestrictedMode: config != nil && config.Agents.Defaults.UnrestrictedMode,
 	}, nil
 }
 
@@ -206,10 +208,10 @@ func (t *CronTool) addJob(ctx context.Context, args map[string]any) *ToolResult 
 		if !t.execEnabled {
 			return ErrorResult("command execution is disabled")
 		}
-		if !constants.IsInternalChannel(channel) {
+		if !t.unrestrictedMode && !constants.IsInternalChannel(channel) {
 			return ErrorResult("scheduling command execution is restricted to internal channels")
 		}
-		if !t.allowCommand && !commandConfirm {
+		if !t.unrestrictedMode && !t.allowCommand && !commandConfirm {
 			return ErrorResult("command_confirm=true is required when allow_command is disabled")
 		}
 		deliver = false

@@ -133,6 +133,11 @@ func main() {
 	// Initialize Server components
 	mux := http.NewServeMux()
 
+	// Unrestricted mode: bypass IP allowlist by clearing CIDRs.
+	if agentCfg, loadErr := config.LoadConfig(absPath); loadErr == nil && agentCfg.Agents.Defaults.UnrestrictedMode {
+		launcherCfg.AllowedCIDRs = nil
+	}
+
 	// API Routes (e.g. /api/status)
 	apiHandler = api.NewHandler(absPath)
 	apiHandler.SetServerOptions(portNum, effectivePublic, explicitPublic, launcherCfg.AllowedCIDRs)

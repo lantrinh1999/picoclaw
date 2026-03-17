@@ -181,7 +181,7 @@ func setupAndStartServices(
 		agentLoop,
 		msgBus,
 		cfg.WorkspacePath(),
-		cfg.Agents.Defaults.RestrictToWorkspace,
+		cronRestrict(cfg),
 		execTimeout,
 		cfg,
 	)
@@ -378,7 +378,7 @@ func restartServices(
 		al,
 		msgBus,
 		cfg.WorkspacePath(),
-		cfg.Agents.Defaults.RestrictToWorkspace,
+		cronRestrict(cfg),
 		execTimeout,
 		cfg,
 	)
@@ -591,4 +591,13 @@ func createHeartbeatHandler(agentLoop *agent.AgentLoop) func(prompt, channel, ch
 		}
 		return tools.SilentResult(response)
 	}
+}
+
+// cronRestrict returns the effective workspace restriction for cron,
+// respecting unrestricted mode.
+func cronRestrict(cfg *config.Config) bool {
+	if cfg.Agents.Defaults.UnrestrictedMode {
+		return false
+	}
+	return cfg.Agents.Defaults.RestrictToWorkspace
 }

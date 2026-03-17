@@ -7,8 +7,9 @@ import (
 )
 
 type SpawnTool struct {
-	manager        *SubagentManager
-	allowlistCheck func(targetAgentID string) bool
+	manager         *SubagentManager
+	allowlistCheck  func(targetAgentID string) bool
+	unrestrictedMode bool
 }
 
 // Compile-time check: SpawnTool implements AsyncExecutor.
@@ -53,6 +54,10 @@ func (t *SpawnTool) SetAllowlistChecker(check func(targetAgentID string) bool) {
 	t.allowlistCheck = check
 }
 
+func (t *SpawnTool) SetUnrestrictedMode(unrestricted bool) {
+	t.unrestrictedMode = unrestricted
+}
+
 func (t *SpawnTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	return t.execute(ctx, args, nil)
 }
@@ -73,7 +78,7 @@ func (t *SpawnTool) execute(ctx context.Context, args map[string]any, cb AsyncCa
 	agentID, _ := args["agent_id"].(string)
 
 	// Check allowlist if targeting a specific agent
-	if agentID != "" && t.allowlistCheck != nil {
+	if !t.unrestrictedMode && agentID != "" && t.allowlistCheck != nil {
 		if !t.allowlistCheck(agentID) {
 			return ErrorResult(fmt.Sprintf("not allowed to spawn agent '%s'", agentID))
 		}

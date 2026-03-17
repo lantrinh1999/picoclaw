@@ -18,11 +18,12 @@ import (
 // SendFileTool allows the LLM to send a local file (image, document, etc.)
 // to the user on the current chat channel via the MediaStore pipeline.
 type SendFileTool struct {
-	workspace   string
-	restrict    bool
-	maxFileSize int
-	mediaStore  media.MediaStore
-	allowPaths  []*regexp.Regexp
+	workspace       string
+	restrict        bool
+	maxFileSize     int
+	mediaStore      media.MediaStore
+	allowPaths      []*regexp.Regexp
+	unrestrictedMode bool
 
 	defaultChannel string
 	defaultChatID  string
@@ -82,6 +83,10 @@ func (t *SendFileTool) SetMediaStore(store media.MediaStore) {
 	t.mediaStore = store
 }
 
+func (t *SendFileTool) SetUnrestrictedMode(unrestricted bool) {
+	t.unrestrictedMode = unrestricted
+}
+
 func (t *SendFileTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	path, _ := args["path"].(string)
 	if strings.TrimSpace(path) == "" {
@@ -105,9 +110,18 @@ func (t *SendFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return ErrorResult("media store not configured")
 	}
 
-	resolved, err := validatePathWithAllowPaths(path, t.workspace, t.restrict, t.allowPaths)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("invalid path: %v", err))
+	var resolved string
+	if t.unrestrictedMode {
+		resolved, _ = filepath.Abs(path)
+		if resolved == "" {
+			resolved = path
+		}
+	} else {
+		var err error
+		resolved, err = validatePathWithAllowPaths(path, t.workspace, t.restrict, t.allowPaths)
+		if err != nil {
+			return ErrorResult(fmt.Sprintf("invalid path: %v", err))
+		}
 	}
 
 	info, err := os.Stat(resolved)
@@ -117,7 +131,7 @@ func (t *SendFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 	if info.IsDir() {
 		return ErrorResult("path is a directory, expected a file")
 	}
-	if info.Size() > int64(t.maxFileSize) {
+	if !t.unrestrictedMode && info.Size() > int64(t.maxFileSize) {
 		return ErrorResult(fmt.Sprintf(
 			"file too large: %d bytes (max %d bytes)",
 			info.Size(), t.maxFileSize,
